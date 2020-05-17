@@ -20,38 +20,43 @@ class WindowState:
 	def __init__(self):
 		super(WindowState, self).__init__()
 
-		self.file_name = argv[1]
+		self.file_name = ""
 		try:
-			self.ofile = open(self.file_name, "r+")
-		except:
-			print("The file `%s` does not exist, would you like to create it [y/N]? " % self.file_name, end='')
-			option = input().lower()
-			if (option == "y" or option == "yes"):
-				os.mknod(self.file_name)
-				self.ofile = open(self.file_name, "r+")
-			else:
-				exit(-1)
+			self.file_name = argv[1]
+			self.set_file(self.file_name)
+		except IOError:
+			# Incase of file not being create
+			self.file_name = argv[1]
+			os.mknod(self.file_name)
+			self.set_file(self.file_name)
+		except IndexError:
+			# Incase of no file being provided
+			self.lines = [""]
+			# Put to stop closing of file since there is none
+			self.ofile = False
 
-		self.window = curses.initscr()
-		self.window.keypad(True)
-		self.window.scrollok(1)
+		self.init_screen()
+		self.init_vars()
 
-		curses.noecho()
-		curses.cbreak()
-		curses.curs_set(0)
-		curses.start_color()
+	def set_file(self, file_name):
+		self.ofile = open(self.file_name, "r+")
 
-		self.win_h, self.win_w = self.window.getmaxyx()
-
+	def init_vars(self):
 		self.edited = False
+		self.cursor_hidden = False
 
 		self.abs_line = 0
 		self.rel_line = 0
-		self.lines = self.ofile.read().split('\n')
-		self.max_lines = len(self.lines)
+		if (self.file_name):
+			self.lines = self.ofile.read().split('\n')
 
+		self.status_buffer = ""
 		self.command_buffer = ""
 		self.error_buffer = ""
+
+		# potential config vars
+		self.save_on_exit = True
+
 
 		self.page = 0
 		self.page_length = self.win_h - 1
@@ -61,12 +66,26 @@ class WindowState:
 
 		self.running = True
 
+	def init_screen(self):
+		self.window = curses.initscr()
+		self.window.keypad(True)
+		self.window.scrollok(1)
+
+		self.win_h, self.win_w = self.window.getmaxyx()
+
+		curses.noecho()
+		curses.cbreak()
+		curses.curs_set(0)
+		curses.start_color()
+
+
 	def finish(self):
 		curses.nocbreak()
 		self.window.keypad(False)
 		curses.echo()
 		curses.endwin()
-		self.ofile.close()
+		if (self.file_name and self.ofile):
+			self.ofile.close()
 
 class CommandHandler:
 	def __init__(self):
@@ -75,6 +94,7 @@ class CommandHandler:
 		self.commands = {
 			"n" : {},
 			"g" : {},
+			"c" : {},
 			"i" : {}
 		}
 		self.default_key = "_"
@@ -106,8 +126,7 @@ class Window(WindowState, CommandHandler):
 	def update(self):
 		self.page = self.abs_line // self.page_length
 		self.rel_line = self.abs_line % self.page_length
-		self.max_lines = len(self.lines)
-		self.command_buffer = "Mode: %s    File: %s%s    Line %d/%d" % (self.mode, self.file_name, "[+]" if self.edited else "", self.abs_line + 1, self.max_lines)
+		self.status_buffer = "Mode: %s    File: %s%s    Line %d/%d" % (self.mode, self.file_name if self.file_name else "Empty Buffer", "[+]" if self.edited else "", self.abs_line + 1, len(self.lines))
 
 	def render_lines(self):
 		"""Renders the lines in the form of pages. Also handles keyboard input"""
@@ -117,7 +136,7 @@ class Window(WindowState, CommandHandler):
 		for i, line in enumerate(current_page):
 			if (len(line) == 0):
 				line += " "
-			if (i == self.rel_line):
+			if (i == self.rel_line and not self.cursor_hidden):
 				self.window.addstr(line, curses.color_pair(self.CURSOR_COLOR))
 			else:
 				self.window.addstr(line, curses.color_pair(self.NON_CURSOR_COLOR))
@@ -128,6 +147,7 @@ class Window(WindowState, CommandHandler):
 		# Error is removed too fast otherwise
 		if (self.error_buffer):
 			self.error_buffer = ""
+			self.cursor_hidden = False
 		else:
 			self.key_comb(self.mode, self.key)
 
@@ -138,10 +158,13 @@ class Window(WindowState, CommandHandler):
 		Buffers are rendered at the bottom of the screen
 		"""
 		self.window.move(self.win_h - 1, 0)
-		if (self.error_buffer):
+		if (self.mode == "c"):
+			self.window.addstr(":" + self.command_buffer, curses.color_pair(self.COMMAND_COLOR))
+		elif (self.error_buffer):
+			self.cursor_hidden = True
 			self.window.addstr(self.error_buffer, curses.color_pair(self.ERROR_COLOR))
 		else:
-			self.window.addstr(self.command_buffer, curses.color_pair(self.COMMAND_COLOR))
+			self.window.addstr(self.status_buffer, curses.color_pair(self.COMMAND_COLOR))
 		self.window.move(0, 0)
 	
 	def run(self):
