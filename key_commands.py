@@ -12,6 +12,10 @@ def add_all_commands(window):
 	window.add_command("n", "j", normal_move_down)
 	window.add_command("n", "O", normal_new_line_up)
 	window.add_command("n", "o", normal_new_line_down)
+	window.add_command("n", "h", normal_scroll_left)
+	window.add_command("n", "l", normal_scroll_right)
+	window.add_command("n", "0", normal_start_line)
+	window.add_command("n", "$", normal_end_line)
 	window.add_command("n", "d", normal_delete_line)
 	window.add_command("n", "G", normal_go_bottom_file)
 	window.add_command("n", "c", normal_change_line)
@@ -45,11 +49,13 @@ def normal_move_up(window):
 	if (window.abs_line - 1 < 0):
 		return
 	window.abs_line -= 1
+	normal_end_line(window)
 
 def normal_move_down(window):
 	if (window.abs_line + 1 >= len(window.lines)):
 		return
 	window.abs_line += 1
+	normal_end_line(window)
 
 def normal_new_line_up(window):
 	window.lines.insert(window.abs_line, "")
@@ -59,6 +65,18 @@ def normal_new_line_down(window):
 	window.lines.insert(window.abs_line + 1, "")
 	window.abs_line += 1
 	enter_insert_mode(window)
+
+def normal_scroll_left(window):
+	window.line_offset = max(window.line_offset - 1, 0)
+
+def normal_scroll_right(window):
+	window.line_offset = min(window.line_offset + 1, max(len(window.lines[window.abs_line])-window.win_w+1, 0))
+
+def normal_start_line(window):
+	window.line_offset = 0
+
+def normal_end_line(window):
+	window.line_offset = max(len(window.lines[window.abs_line])-window.win_w+1, 0)
 
 def normal_delete_line(window):
 	del window.lines[window.abs_line]
@@ -85,6 +103,7 @@ def normal_go_bottom_file(window):
 
 def normal_change_line(window):
 	window.edited = True
+	normal_start_line(window)
 	window.lines[window.abs_line] = ""
 	enter_insert_mode(window)
 
@@ -140,10 +159,13 @@ def enter_insert_mode(window):
 	window.mode = "i"
 
 def insert_add_char(window):
+	#TODO: Fix add char scrolling
 	window.lines[window.abs_line] += window.key
+	normal_scroll_right(window)
 	window.edited = True
 
 def insert_delete_char(window):
+	normal_scroll_left(window)
 	if (window.lines[window.abs_line] == "" and window.abs_line != 0):
 		normal_delete_line(window)
 		window.abs_line -= 1

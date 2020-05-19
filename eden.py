@@ -57,6 +57,8 @@ class WindowState:
 		# potential config vars
 		self.save_on_exit = True
 
+		# used for scrolling
+		self.line_offset = 0
 
 		self.page = 0
 		self.page_length = self.win_h - 1
@@ -136,10 +138,11 @@ class Window(WindowState, CommandHandler):
 		for i, line in enumerate(current_page):
 			if (len(line) == 0):
 				line += " "
+			line = line[self.line_offset:]
 			if (i == self.rel_line and not self.cursor_hidden):
-				self.window.addstr(line, curses.color_pair(self.CURSOR_COLOR))
+				self.window.addstr(line[:self.win_w - 1], curses.color_pair(self.CURSOR_COLOR))
 			else:
-				self.window.addstr(line, curses.color_pair(self.NON_CURSOR_COLOR))
+				self.window.addstr(line[:self.win_w - 1], curses.color_pair(self.NON_CURSOR_COLOR))
 			self.window.addch('\n')
 
 		self.key = self.window.getkey()
