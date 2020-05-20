@@ -6,6 +6,9 @@ BACKSPACE = "KEY_BACKSPACE"
 def unkown_key_comb(window):
 	window.error_buffer = "Unknown key combination %s->%s (Mode->Key)" % (window.mode, window.key.replace("\n", "\\n"))
 
+def calculate_end_line(window):
+	return max(len(window.lines[window.abs_line])-window.win_w+1, 0)
+
 def add_all_commands(window):
 	window.add_command("n", "q", normal_quit_win)
 	window.add_command("n", "k", normal_move_up)
@@ -15,7 +18,7 @@ def add_all_commands(window):
 	window.add_command("n", "h", normal_scroll_left)
 	window.add_command("n", "l", normal_scroll_right)
 	window.add_command("n", "0", normal_start_line)
-	window.add_command("n", "$", normal_end_line)
+	window.add_command("n", "$", normal_go_end_line)
 	window.add_command("n", "d", normal_delete_line)
 	window.add_command("n", "G", normal_go_bottom_file)
 	window.add_command("n", "c", normal_change_line)
@@ -49,13 +52,13 @@ def normal_move_up(window):
 	if (window.abs_line - 1 < 0):
 		return
 	window.abs_line -= 1
-	normal_end_line(window)
+	window.line_offset = min(window.line_offset, calculate_end_line(window))
 
 def normal_move_down(window):
 	if (window.abs_line + 1 >= len(window.lines)):
 		return
 	window.abs_line += 1
-	normal_end_line(window)
+	window.line_offset = min(window.line_offset, calculate_end_line(window))
 
 def normal_new_line_up(window):
 	window.lines.insert(window.abs_line, "")
@@ -75,8 +78,8 @@ def normal_scroll_right(window):
 def normal_start_line(window):
 	window.line_offset = 0
 
-def normal_end_line(window):
-	window.line_offset = max(len(window.lines[window.abs_line])-window.win_w+1, 0)
+def normal_go_end_line(window):
+	window.line_offset = calculate_end_line(window)
 
 def normal_delete_line(window):
 	del window.lines[window.abs_line]
@@ -129,8 +132,7 @@ def command_execute_command(window):
 		normal_quit_win(window)
 
 	# regex matches
-
-	#  write to
+	#  - write to
 	match_string = r"(wto)\s+(.+)"
 	match = re.match(match_string, window.command_buffer)
 	if (match):
@@ -159,9 +161,8 @@ def enter_insert_mode(window):
 	window.mode = "i"
 
 def insert_add_char(window):
-	#TODO: Fix add char scrolling
 	window.lines[window.abs_line] += window.key
-	normal_scroll_right(window)
+	normal_go_end_line(window)
 	window.edited = True
 
 def insert_delete_char(window):
@@ -175,3 +176,4 @@ def insert_delete_char(window):
 def insert_newline(window):
 	window.lines.insert(window.abs_line + 1, "")
 	window.abs_line += 1
+	window.line_offset = 0

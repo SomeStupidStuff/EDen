@@ -55,7 +55,7 @@ class WindowState:
 		self.error_buffer = ""
 
 		# potential config vars
-		self.save_on_exit = True
+		self.save_on_exit = False
 
 		# used for scrolling
 		self.line_offset = 0
